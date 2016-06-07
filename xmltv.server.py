@@ -59,7 +59,7 @@ def now_next_time(seconds):
     conn = get_conn()
     c = conn.cursor()
 
-    c.execute('SELECT *, name FROM channels')
+    c.execute('SELECT * FROM channels')
     channels = [(row['id'], row['name'], row['icon']) for row in c]
 
     now = datetime.fromtimestamp(float(seconds))
@@ -111,9 +111,12 @@ def now_next_time(seconds):
 def listing(channel):
     conn = get_conn()
     c = conn.cursor()
-    c.execute('SELECT *, name FROM channels')
+    c.execute('SELECT * FROM channels')
     channels = dict((row['id'], (row['name'], row['icon'])) for row in c)
-    c.execute("SELECT * FROM programmes WHERE channel=? ORDER BY start, channel", [channel])
+    #print channel
+    channel = urllib.unquote_plus(channel)
+    #print channel
+    c.execute("SELECT * FROM programmes WHERE channel=? ORDER BY start, channel", [channel.decode("utf8")])
     last_day = ''
     items = []
     for row in c:
@@ -136,8 +139,12 @@ def listing(channel):
 def search(programme_name):
     conn = get_conn()
     c = conn.cursor()
-    c.execute('SELECT *, name FROM channels')
+    c.execute('SELECT * FROM channels')
     channels = dict((row['id'], (row['name'], row['icon'])) for row in c)
+    #print programme_name
+    programme_name = urllib.unquote_plus(programme_name)
+    #print programme_name
+    programme_name = unicode(programme_name,'utf-8')
     c.execute("SELECT * FROM programmes WHERE LOWER(title) LIKE LOWER(?) ORDER BY start, channel", ['%'+programme_name+'%'])
     last_day = ''
     items = []
@@ -161,8 +168,9 @@ def search(programme_name):
 def channels():
     conn = get_conn()
     c = conn.cursor()
-    c.execute('SELECT *, name FROM channels')
+    c.execute('SELECT * FROM channels')
     channels = dict((row['id'], (row['name'], row['icon'])) for row in c)
+    #print channels
     return channels
 
     
@@ -177,6 +185,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write("body")
         elif format == 'json':
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.send_header('Content-type','text-html')
+            self.end_headers()            
             path = self.path.split('/')
             request = path[1]
             if len(path) > 2:
