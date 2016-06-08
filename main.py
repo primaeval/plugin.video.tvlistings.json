@@ -278,7 +278,6 @@ def channels():
         item['path'] = plugin.url_for('listing', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"))
         items.append(item)
 
-    plugin.set_view_mode(51)
     return items
 
 @plugin.route('/now_next_time/<seconds>')
@@ -329,7 +328,6 @@ def prime():
     dt = dt.replace(hour=int(prime), minute=0, second=0)
     total_seconds = str(time.mktime(dt.timetuple()))
     items = now_next_time(total_seconds)
-    plugin.set_view_mode(51)
     return items
 
 
@@ -338,7 +336,6 @@ def now_next():
     dt = datetime.now()
     total_seconds = str(time.mktime(dt.timetuple()))
     items = now_next_time(total_seconds)
-    plugin.set_view_mode(51)
     return items
 
 @plugin.route('/listing/<channel_id>/<channel_name>')
@@ -444,9 +441,10 @@ def search_dialog():
     if name:
         return search(name)
 
-
+index_page = False
 @plugin.route('/')
 def index():
+    index_page = True
     items = [  
     {
         'label': '[COLOR green][B]Now Next[/B][/COLOR]',
@@ -474,4 +472,5 @@ def index():
 if __name__ == '__main__':
     store_channels()
     plugin.run()
-    
+    if index_page == False:
+        plugin.set_view_mode(51)
