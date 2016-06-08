@@ -262,143 +262,6 @@ def get_conn():
     conn.execute('PRAGMA foreign_keys = ON')
     conn.row_factory = sqlite3.Row        
     return conn
-        
-def xml_channels():
-    if plugin.get_setting('xml_reload') == 'true':
-        plugin.set_setting('xml_reload','false')
-    else:
-        try:
-            xmltv_type = plugin.get_setting('xmltv_type')
-            xmltv_type_last = plugin.get_setting('xmltv_type_last')
-            if xmltv_type == xmltv_type_last:
-                if plugin.get_setting('xmltv_type') == '0':
-                    path = xbmc.translatePath(plugin.get_setting('xmltv_file'))
-                    stat = xbmcvfs.Stat(path)
-                    modified = str(stat.st_mtime())
-                    last_modified = plugin.get_setting('xmltv_last_modified')
-                    if last_modified == modified:
-                        return
-                    plugin.set_setting('xmltv_last_modified', modified)
-                else:
-                    dt = datetime.now()
-                    now = int(time.mktime(dt.timetuple()))
-                    try:
-                        last = plugin.get_setting("xmltv_url_last")
-                        last = int(last) if last else 0
-                        hours = int(plugin.get_setting("xmltv_hours"))
-                        next = last + 3600*hours
-                        if now < next:
-                            return
-                        else:
-                            plugin.set_setting("xmltv_url_last",str(now))
-                    except:
-                        plugin.set_setting("xmltv_url_last",str(now))
-            #TODO check logic for reloading xmltv files
-            plugin.set_setting('xmltv_type_last',xmltv_type)
-        except:
-            plugin.set_setting('xmltv_type_last',xmltv_type)
-
-
-    xbmcvfs.mkdir('special://userdata/addon_data/plugin.video.tvlistings.xmltv')
-    if not xbmcvfs.exists('special://userdata/addon_data/plugin.video.tvlistings.xmltv/myaddons.ini'):
-        f = xbmcvfs.File('special://userdata/addon_data/plugin.video.tvlistings.xmltv/myaddons.ini','w')
-        f.close()
-
-    file_name = 'special://userdata/addon_data/plugin.video.tvlistings.xmltv/template.ini'
-    f = xbmcvfs.File(file_name,'w')
-    write_str = "# WARNING Make a copy of this file.\n# It will be overwritten on the next channel reload.\n\n[plugin.video.all]\n"
-    f.write(write_str.encode("utf8"))
-
-    conn = get_conn()
-    conn.execute('PRAGMA foreign_keys = ON')
-    conn.row_factory = sqlite3.Row
-    conn.execute('DROP TABLE IF EXISTS channels')
-    conn.execute('DROP TABLE IF EXISTS programmes')
-    conn.execute(
-    'CREATE TABLE IF NOT EXISTS channels(id TEXT, name TEXT, icon TEXT, PRIMARY KEY (id))')
-    conn.execute(
-    'CREATE TABLE IF NOT EXISTS programmes(channel TEXT, title TEXT, sub_title TEXT, start INTEGER, date INTEGER, description TEXT, series INTEGER, episode INTEGER, categories TEXT, PRIMARY KEY(channel, start))')
-
-    if plugin.get_setting('xmltv_type') == '1':
-        url = plugin.get_setting('xmltv_url')
-        r = requests.get(url)
-        file_name = 'special://userdata/addon_data/plugin.video.tvlistings.xmltv/xmltv.xml'
-        xmltv_f = xbmcvfs.File(file_name,'w')
-        xml = r.content
-        xmltv_f.write(xml)
-        xmltv_f.close()
-        xmltv_file = file_name
-    else:
-        xmltv_file = plugin.get_setting('xmltv_file')
-    
-    xml_f = FileWrapper(xmltv_file)
-    if xml_f.size == 0:
-        return
-    context = ET.iterparse(xml_f, events=("start", "end"))
-    context = iter(context)
-    event, root = context.next()
-    for event, elem in context:
-        if event == "end":
-
-            if elem.tag == "channel":
-                id = elem.attrib['id']
-                display_name = elem.find('display-name').text
-                try:
-                    icon = elem.find('icon').attrib['src']
-                except:
-                    icon = ''
-                write_str = "%s=\n" % (id)
-                f.write(write_str.encode("utf8"))
-                conn.execute("INSERT OR IGNORE INTO channels(id, name, icon) VALUES(?, ?, ?)", [id, display_name, icon])
-
-            elif elem.tag == "programme":
-                programme = elem
-                start = programme.attrib['start']
-                start = xml2utc(start)
-                start = utc2local(start)
-                channel = programme.attrib['channel']
-                title = programme.find('title').text
-                match = re.search(r'(.*?)"}.*?\(\?\)$',title) #BUG in webgrab
-                if match:
-                    title = match.group(1)
-                try:
-                    sub_title = programme.find('sub-title').text
-                except:
-                    sub_title = ''
-                try:
-                    date = programme.find('date').text
-                except:
-                    date = ''
-                try:
-                    description = programme.find('desc').text
-                except:
-                    description = ''
-                try:
-                    episode_num = programme.find('episode-num').text
-                except:
-                    episode_num = ''
-                series = 0
-                episode = 0
-                match = re.search(r'(.*?)\.(.*?)[\./]',episode_num)
-                if match:
-                    try:
-                        series = int(match.group(1)) + 1
-                        episode = int(match.group(2)) + 1
-                    except:
-                        pass
-                series = str(series)
-                episode = str(episode)
-                categories = ''
-                for category in programme.findall('category'):
-                    categories = ','.join((categories,category.text)).strip(',')
-
-                total_seconds = time.mktime(start.timetuple())
-                start = int(total_seconds)
-                conn.execute("INSERT OR IGNORE INTO programmes(channel ,title , sub_title , start , date, description , series , episode , categories) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)", [channel ,title , sub_title , start , date, description , series , episode , categories])
-            root.clear()
-
-    conn.commit()
-    conn.close()
 
 
 @plugin.route('/channels')
@@ -420,10 +283,8 @@ def channels():
 
 @plugin.route('/now_next_time/<seconds>')
 def now_next_time(seconds):
-
     url = plugin.get_setting("xmltv_url")
     url = url+'/time/'+seconds
-    #log2(url)
     r = requests.get(url)
     programmes = r.json()
     
@@ -468,11 +329,7 @@ def prime():
     dt = dt.replace(hour=int(prime), minute=0, second=0)
     total_seconds = str(time.mktime(dt.timetuple()))
     items = now_next_time(total_seconds)
-
     plugin.set_view_mode(51)
-    #plugin.set_content('episodes')
-    #sorted_items = sorted(items, key=lambda item: item['info']['sorttitle'])
-    #return sorted_items  
     return items
 
 
@@ -481,20 +338,16 @@ def now_next():
     dt = datetime.now()
     total_seconds = str(time.mktime(dt.timetuple()))
     items = now_next_time(total_seconds)
-
     plugin.set_view_mode(51)
-    #plugin.set_content('episodes')
     return items
 
 @plugin.route('/listing/<channel_id>/<channel_name>')
 def listing(channel_id,channel_name):  
-
     url = plugin.get_setting("xmltv_url")
     url = url+'/listing/'+channel_id
-    #log2(url)
     r = requests.get(url)
     programmes = r.json()
-    #log2(programmes)
+
     items = []
     last_day = ''
     for (channel_id,channel_name,img_url,title,sub_title,start,date,plot,season,episode,categories) in programmes:
@@ -514,7 +367,7 @@ def listing(channel_id,channel_name):
         if sub_title:
             plot = "[B]%s[/B]: %s" % (sub_title,plot)
         ttime = "%02d:%02d" % (dt.hour,dt.minute)
-        #channel_name_u = unicode(channel_name,'utf-8')
+
         if  plugin.get_setting('show_channel_name') == 'true':
             if plugin.get_setting('show_plot') == 'true':
                 label = "[COLOR yellow][B]%s[/B][/COLOR] %s [COLOR orange][B]%s[/B][/COLOR] %s" % (channel_name,ttime,title,plot)
@@ -531,8 +384,6 @@ def listing(channel_id,channel_name):
         item['info'] = {'plot':plot, 'season':int(season), 'episode':int(episode), 'genre':categories}
         item['path'] = plugin.url_for('play', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"), title=title.encode("utf8"), season=season, episode=episode)
         items.append(item)
-
-    #c.close()
 
     return items
 
@@ -564,7 +415,7 @@ def search(programme_name):
         if sub_title:
             plot = "[B]%s[/B]: %s" % (sub_title,plot)
         ttime = "%02d:%02d" % (dt.hour,dt.minute)
-        #channel_name_u = unicode(channel_name,'utf-8')
+
         if  plugin.get_setting('show_channel_name') == 'true':
             if plugin.get_setting('show_plot') == 'true':
                 label = "[COLOR yellow][B]%s[/B][/COLOR] %s [COLOR orange][B]%s[/B][/COLOR] %s" % (channel_name,ttime,title,plot)
@@ -582,64 +433,8 @@ def search(programme_name):
         item['path'] = plugin.url_for('play', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"), title=title.encode("utf8"), season=season, episode=episode)
         items.append(item)
 
-    #c.close()
-
     return items
-'''
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute('SELECT *, name FROM channels')
-    channels = dict((row['id'], (row['name'], row['icon'])) for row in c)
-    c.execute("SELECT * FROM programmes WHERE LOWER(title) LIKE LOWER(?) ORDER BY start, channel", ['%'+programme_name+'%'])
-    last_day = ''
-    items = []
-    for row in c:
-        channel_id = row['channel']
-        (channel_name, img_url) = channels[channel_id]
-        title = row['title']
-        sub_title = row['sub_title']
-        start = row['start']
-        date = row['date']
-        plot = row['description']
-        season = row['series']
-        episode = row['episode']
-        categories = row['categories']
-        
-        dt = datetime.fromtimestamp(start)
-        day = dt.day
-        if day != last_day:
-            last_day = day
-            label = "[COLOR red][B]%s[/B][/COLOR]" % (dt.strftime("%A %d/%m/%y"))
-            items.append({'label':label,'is_playable':True,'path':plugin.url_for('listing', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"))}) 
-            
-        if not season:
-            season = '0'
-        if not episode:
-            episode = '0'
-        if date:
-            title = "%s (%s)" % (title,date)
-        if sub_title:
-            plot = "[B]%s[/B]: %s" % (sub_title,plot)
-        ttime = "%02d:%02d" % (dt.hour,dt.minute)
 
-        if  plugin.get_setting('show_channel_name') == 'true':
-            if plugin.get_setting('show_plot') == 'true':
-                label = "[COLOR yellow][B]%s[/B][/COLOR] %s [COLOR orange][B]%s[/B][/COLOR] %s" % (channel_name,ttime,title,plot)
-            else:
-                label = "[COLOR yellow][B]%s[/B][/COLOR] %s [COLOR orange][B]%s[/B][/COLOR]" % (channel_name,ttime,title)
-        else:
-            if plugin.get_setting('show_plot') == 'true':
-                label = "%s [COLOR orange][B]%s[/B][/COLOR] %s" % (ttime,title,plot)
-            else:
-                label = "%s [COLOR orange][B]%s[/B][/COLOR]" % (ttime,title)
-
-        item = {'label':label,'icon':img_url,'thumbnail':img_url}
-        item['info'] = {'plot':plot, 'season':int(season), 'episode':int(episode), 'genre':categories}
-        item['path'] = plugin.url_for('play', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"), title=title.encode("utf8"), season=season, episode=episode)
-        items.append(item)
-    c.close()
-    return items
-'''
 
 
 @plugin.route('/search_dialog')
@@ -677,7 +472,6 @@ def index():
     return items
     
 if __name__ == '__main__':
-    #xml_channels()
     store_channels()
     plugin.run()
     
