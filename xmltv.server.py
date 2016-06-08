@@ -169,7 +169,7 @@ def channels():
     conn = get_conn()
     c = conn.cursor()
     c.execute('SELECT * FROM channels')
-    channels = dict((row['id'], (row['name'], row['icon'])) for row in c)
+    channels = [[row['id'], row['name'], row['icon']] for row in c]
     #print channels
     return channels
 

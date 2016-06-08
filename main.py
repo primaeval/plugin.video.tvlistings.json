@@ -405,19 +405,15 @@ def xml_channels():
 def channels():  
     url = plugin.get_setting("xmltv_url")
     url = url+'/channels'
-    #log2(url)
     r = requests.get(url)
     channels = r.json()
-    #log2(channels)
-    items = []
-    for channel_id in sorted(channels):
-        (channel_name, img_url) = channels[channel_id]
 
+    items = []
+    for (channel_id, channel_name, img_url) in channels:
         label = "[COLOR yellow][B]%s[/B][/COLOR]" % (channel_name)
         item = {'label':label,'icon':img_url,'thumbnail':img_url}
         item['path'] = plugin.url_for('listing', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"))
         items.append(item)
-
 
     plugin.set_view_mode(51)
     return items
@@ -445,70 +441,7 @@ def now_next_time(seconds):
 
         items.append(item)
     return items
-    '''
-    conn = get_conn()
-    c = conn.cursor()
 
-    c.execute('SELECT *, name FROM channels')
-    channels = [(row['id'], row['name'], row['icon']) for row in c]
-
-    now = datetime.fromtimestamp(float(seconds))
-    total_seconds = time.mktime(now.timetuple())
-
-    items = []
-    for (channel_id, channel_name, img_url) in channels:
-
-        c.execute('SELECT start FROM programmes WHERE channel=?', [channel_id])
-        programmes = [row['start'] for row in c]
-        
-        times = sorted(programmes)
-        max = len(times)
-        less = [i for i in times if i <= total_seconds]
-        index = len(less) - 1
-        if index < 0:
-            continue
-        now = times[index]
-
-        c.execute('SELECT * FROM programmes WHERE channel=? AND start=?', [channel_id,now])
-        now = datetime.fromtimestamp(now)
-        now = "%02d:%02d" % (now.hour,now.minute)
-        now_title = c.fetchone()['title']
-
-        next = ''
-        next_title = ''
-        if index+1 < max: 
-            next = times[index + 1]
-            c.execute('SELECT * FROM programmes WHERE channel=? AND start=?', [channel_id,next])
-            next = datetime.fromtimestamp(next)                
-            next = "%02d:%02d" % (next.hour,next.minute)                
-            next_title = c.fetchone()['title']
-
-        after = ''
-        after_title = ''
-        if (index+2) < max:
-            after = times[index + 2]
-            c.execute('SELECT * FROM programmes WHERE channel=? AND start=?', [channel_id,after])
-            after = datetime.fromtimestamp(after)
-            after = "%02d:%02d" % (after.hour,after.minute)
-            after_title = c.fetchone()['title']
-
-        if  plugin.get_setting('show_channel_name') == 'true':
-            label = "[COLOR yellow][B]%s[/B][/COLOR] %s [COLOR orange][B]%s[/B][/COLOR] %s [COLOR white][B]%s[/B][/COLOR] %s [COLOR grey][B]%s[/B][/COLOR]" % \
-            (channel_name,now,now_title,next,next_title,after,after_title)
-        else:
-            label = "%s [COLOR orange][B]%s[/B][/COLOR] %s [COLOR white][B]%s[/B][/COLOR] %s [COLOR grey][B]%s[/B][/COLOR]" % \
-            (now,now_title,next,next_title,after,after_title)
-
-        item = {'label':label,'icon':img_url,'thumbnail':img_url}
-        item['path'] = plugin.url_for('listing', channel_id=channel_id.encode("utf8"), channel_name=channel_name.encode("utf8"))
-
-        items.append(item)
-
-    #plugin.set_view_mode(51)
-    #plugin.set_content('episodes')
-
-    return items
-'''
 @plugin.route('/hourly')
 def hourly():  
     items = []

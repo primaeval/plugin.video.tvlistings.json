@@ -1,18 +1,2 @@
-Version 0.0.6
-- sqlite database
-- xmltv url
-
-Version 0.0.5
-- hourly, prime time
-
-Version 0.0.4
-- unicode channels 
-
-Version 0.0.3
-- search 
-
-Version 0.0.2
-- xmltv file sort order 
-
 Version 0.0.1
 - first release
