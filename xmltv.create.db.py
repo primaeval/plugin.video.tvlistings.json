@@ -1,19 +1,13 @@
-#from xbmcswift2 import Plugin
-#import xbmc,xbmcaddon,xbmcvfs,xbmcgui
 import re
-
 import requests
-
 from datetime import datetime,timedelta
 import time
 import urllib
 import HTMLParser
-#import xbmcplugin
 import xml.etree.ElementTree as ET
 import sqlite3
 import os
 
-#plugin = Plugin()
 
 def log2(v):
     xbmc.log(repr(v))
@@ -120,11 +114,9 @@ def xml_channels():
     'CREATE TABLE IF NOT EXISTS programmes(channel TEXT, title TEXT, sub_title TEXT, start INTEGER, date INTEGER, description TEXT, series INTEGER, episode INTEGER, categories TEXT, PRIMARY KEY(channel, start))')
 
 
-    xmltv_file = 'kodi.tv.xml'
+    xmltv_file = 'xmltv.xml'
     
-    xml_f = open(xmltv_file) #FileWrapper(xmltv_file)
-    #if xml_f.size == 0:
-    #    return
+    xml_f = open(xmltv_file) 
     context = ET.iterparse(xml_f, events=("start", "end"))
     context = iter(context)
     event, root = context.next()
